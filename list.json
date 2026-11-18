@@ -1,5 +1,10 @@
 [
      {
+        "title": "人生忠告",
+        "time": "2026-11-17",
+        "file": "posts/advice.md"
+    },
+     {
         "title": "稀奇古怪的中国经济",
         "time": "2026-11-17",
         "file": "posts/ce.md"
