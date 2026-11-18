@@ -15,10 +15,8 @@ const site_name = "CloudFlare Workers Blog";
 // 站点介绍
 const site_desc = "一个用 CloudFlare Worker 搭建的博客";
 
-// 资源文件
-const highlight_css = "https://cn.tql.ink:4443/css/highlight.js/github.css";
-const highlight_main = "https://cn.tql.ink:4443/js/highlight.min.js";
-const highlight_pack = "https://cn.tql.ink:4443/js/highlight.pack.js";
+// 每页文章数量
+const posts_per_page = 5;
 
 // Copyright
 const copyright = `&copy; 2019 ${site_name} | <a href="https://github.com/kasuganosoras/cloudflare-worker-blog" target="_blank">Github</a>`;
@@ -40,14 +38,11 @@ var header = `
 		<meta name="description" content="${site_desc}">
 		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css" crossorigin="anonymous">
 		<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/font-awesome/4.6.0/css/font-awesome.min.css">
-		<link rel="stylesheet" href="${highlight_css}">
 		<title>${site_name}</title>
 		<script src="https://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.0/showdown.min.js" type="text/javascript"></script>
 		<script src="https://cdn.jsdelivr.net/npm/showdown-table@1.0.1/dist/showdown-table.min.js" type="text/javascript"></script>
 		<script src="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/js/bootstrap.min.js" crossorigin="anonymous"></script>
-		<script src="${highlight_main}"></script>
-		<script src="${highlight_pack}"></script>
 		<style type="text/css">.post-a {color: #000;text-decoration: none ! important;}.post-box {padding: 12px 20px 12px 20px;border-bottom: 1px solid rgba(0,0,0,0.07);cursor: pointer;border-left: 0px solid rgba(66, 66, 66, 0);transition-duration: 0.3s;}.post-box:hover {transition-duration: 0.3s;border-left: 5px solid rgba(66, 66, 66, 0.15);}.thread h2 {border-bottom: 1px solid rgb(238,238,238);padding-bottom: 10px;}.editor-preview pre, .editor-preview-side pre{padding: 0.5em;}.hljs{background: unset ! important;padding: 0px;}.CodeMirror{height: calc(100% - 320px);min-height: 360px;}.msgid{font-family:Consolas;}.tooltip {word-break: break-all;}h2 a{font-weight: 400;}body{font-family: '-apple-system','BlinkMacSystemFont','Segoe UI','Helvetica','Arial','sans-serif','Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol' ! important;font-weight: 400;}h2 a{color: #000;} h2 a:hover{color: #000; text-decoration: none;}.full-width{width: 100%;}.thread img{vertical-align:text-bottom ! important;max-width:100% ! important;margin-top:8px;margin-bottom:8px;}.thread table{display:block;width:100%;overflow:auto;margin-bottom:8px;}.thread table tr{background-color:#fff;border-top:1px solid #c6cbd1;}.thread table tr:nth-child(2n){background-color:#f6f8fa;}.thread table th,.thread table td{padding:6px 13px;border:1px solid #dfe2e5;font-size:14px;}.thread pre{margin-bottom:16px;}pre{border:none ! important;}blockquote{font-size:15px ! important;}</style>
 	</head>
   <body>
@@ -89,14 +84,32 @@ async function bloghandle(request) {
     const response = await fetch(url, init);
     var resptxt = await response.text();
     var json = JSON.parse(resptxt);
+    // 按发布时间排序，最新在前
+    json.sort(function(a, b) {
+      if(a.time < b.time) return 1;
+      if(a.time > b.time) return -1;
+      return 0;
+    });
+    // 解析 /page/N 路径，支持分页
+    var page = 1;
+    try {
+      var pathname = new URL(request.url).pathname;
+      var pmatch = pathname.match(/^\/page\/(\d+)\/?$/);
+      if(pmatch) page = parseInt(pmatch[1], 10);
+    } catch(e) {}
+    if(isNaN(page) || page < 1) page = 1;
+    var totalPosts = json.length;
+    var totalPages = Math.max(1, Math.ceil(totalPosts / posts_per_page));
+    if(page > totalPages) page = totalPages;
+    var pagePosts = json.slice((page - 1) * posts_per_page, page * posts_per_page);
     console.log(json);
     data += `<p>所有文章</p>`;
-    for(var i = 0;i <= json.length;i++) {
+    for(var i = 0;i < pagePosts.length;i++) {
       try {
-        var filename = encodeURIComponent(json[i].file.replace(/"/g, ""));
-        var time = json[i].time;
-        var title = json[i].title;
-        data += `<a href="?p=${filename}" class="post-a">
+        var filename = encodeURIComponent(pagePosts[i].file.replace(/"/g, ""));
+        var time = pagePosts[i].time;
+        var title = pagePosts[i].title;
+        data += `<a href="/?p=${filename}" class="post-a">
 						<div class="post-box">
 							<h4>${title}</h4>
 							<p>发表于 ${time}</p>
@@ -106,8 +119,20 @@ async function bloghandle(request) {
         // 收声
       }
     }
-    if(json.length == 0) {
+    if(totalPosts == 0) {
       data += `<p><blockquote>暂时没有文章！</blockquote></p>`
+    }
+    if(totalPages > 1) {
+      data += `<ul class="pager">`;
+      if(page > 1) {
+        var prevUrl = (page - 1) == 1 ? "/" : "/page/" + (page - 1);
+        data += `<li class="previous"><a href="${prevUrl}">&larr; 上一页</a></li>`;
+      }
+      data += `<li><span class="text-muted">第 ${page} / ${totalPages} 页</span></li>`;
+      if(page < totalPages) {
+        data += `<li class="next"><a href="/page/${page + 1}">下一页 &rarr;</a></li>`;
+      }
+      data += `</ul>`;
     }
     data += `
             <br>
