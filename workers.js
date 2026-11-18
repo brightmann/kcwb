@@ -146,7 +146,7 @@ async function bloghandle(request) {
       </div>
     </div>
     <script type="text/javascript">
-      hljs.initHighlightingOnLoad();//对 hljs 进行初始化
+      if(window.hljs){hljs.initHighlightingOnLoad();}//对 hljs 进行初始化
       var md = new showdown.Converter({extensions: ['table']}); // 引入 showdown 并加载 table 插件
       md.setOption('simplifiedAutoLink', true); // 自动识别链接
       md.setOption('simpleLineBreaks', true); // 自动换行
@@ -154,7 +154,7 @@ async function bloghandle(request) {
       window.onload = function() {
         $(".thread").html(md.makeHtml(textcontent));
         document.querySelectorAll('pre code').forEach(function(e) {
-          hljs.highlightBlock(e);//渲染代码块，执行高亮操作
+          if(window.hljs){hljs.highlightBlock(e);}//渲染代码块，执行高亮操作
         });
       }
     </script>
